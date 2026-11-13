@@ -9,6 +9,7 @@ from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -17,6 +18,7 @@ from database import (
     dictcc_count,
     init_db,
     insert_word_bank,
+    list_word_bank,
     word_bank_stats,
 )
 from enricher import enrich_word
@@ -28,6 +30,15 @@ app = FastAPI(
     title="German Wortschatz → Anki Pipeline",
     description="Headless DE→EN vocabulary capture, hybrid enrichment, Anki export.",
     version="0.1.0",
+)
+
+# Allow local SPA (web/) and other browser clients; auth is Bearer, not cookies.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -61,7 +72,7 @@ def _load_api_key() -> str:
 
 
 def require_bearer(authorization: Optional[str] = Header(default=None)) -> None:
-    """Strict Authorization: Bearer <SECURE_API_KEY> for /capture and /export."""
+    """Strict Authorization: Bearer <SECURE_API_KEY> for /capture, /export, /words."""
     expected = _load_api_key()
     if authorization is None or not authorization.startswith("Bearer "):
         raise HTTPException(
@@ -151,6 +162,13 @@ def capture(body: CaptureRequest) -> CaptureResponse:
         example_sentence=enrichment.example_sentence,
         exported=0,
     )
+
+
+@app.get("/words", dependencies=[Depends(require_bearer)])
+def words() -> list[dict]:
+    """Return all word_bank rows for flashcard review sync."""
+    with connect() as conn:
+        return list_word_bank(conn)
 
 
 @app.get("/export", dependencies=[Depends(require_bearer)])

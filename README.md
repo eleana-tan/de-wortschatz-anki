@@ -5,8 +5,10 @@ Headless Python **FastAPI** backend for DE→EN vocabulary capture (iOS Shortcut
 ## Features
 
 - `POST /capture` — Bearer-auth capture → enrich → `word_bank` (`exported = 0`)
+- `GET /words` — Bearer-auth JSON list of `word_bank` rows (for review sync)
 - `GET /export` — build Anki deck from unexported rows, mark `exported = 1`
 - `GET /health` — liveness + DB / FTS counts
+- `web/` — SM-2 flashcard review SPA (Vite + React; schedules in `localStorage`)
 - `ingest_dictcc.py` — load dict.cc German–English TSV into FTS5
 
 ## Requirements
@@ -65,6 +67,28 @@ What the ingest does:
 uvicorn main:app --host 127.0.0.1 --port 8000
 # or: python main.py
 ```
+
+### Flashcard review UI (`web/`)
+
+Browser prototype: flip German → English cards, grade Again / Hard / Good / Easy, SM-2-like intervals in `localStorage`. Sync pulls `GET /words` from the pipeline API.
+
+```bash
+cd web
+npm install
+npm run dev
+# open the printed localhost URL (usually http://127.0.0.1:5173)
+```
+
+In **Settings**:
+
+| Field | Typical value |
+| --- | --- |
+| Base URL | `https://wortschatz.eleanatanrui.com` (or `http://127.0.0.1:8000` for a local API) |
+| API key | same `SECURE_API_KEY` as the server `.env` |
+
+Then **Save** → **Sync**. Due cards appear on **Review**; when the queue is empty you see “Done for now.” Scheduling state never leaves the browser — only word content is fetched from the API. Do not commit API keys.
+
+CORS is enabled on the API so a local Vite origin can call the live host with Bearer auth.
 
 ---
 
@@ -166,7 +190,7 @@ Store the key in a Shortcut password field / Ask Each Time — do not paste it i
 ### 6. Security reminders
 
 - **`SECURE_API_KEY` required** — non-empty; process refuses to start if missing/blank. Generate with `secrets.token_urlsafe(32)`.
-- **No public `/capture`** — always HTTPS via nginx + certbot; uvicorn on `127.0.0.1` only; Bearer on `/capture` and `/export`. `/health` is intentionally open (no secrets).
+- **No public `/capture`** — always HTTPS via nginx + certbot; uvicorn on `127.0.0.1` only; Bearer on `/capture`, `/words`, and `/export`. `/health` is intentionally open (no secrets).
 - Never commit `.env`, `*.db`, dict.cc dumps, or `.apkg` exports (see `.gitignore`).
 - Rotate `SECURE_API_KEY` if a Shortcut or device is compromised.
 - Prefer a dedicated Linux user for the service (`User=` in the unit file).
@@ -181,7 +205,7 @@ Store the key in a Shortcut password field / Ask Each Time — do not paste it i
 Authorization: Bearer <SECURE_API_KEY>
 ```
 
-Required for `/capture` and `/export` (`/health` is open). Comparison uses `secrets.compare_digest` (constant-time). Missing or wrong credentials return **401**. An empty or unset `SECURE_API_KEY` causes a **loud startup failure** — the process will not serve.
+Required for `/capture`, `/words`, and `/export` (`/health` is open). Comparison uses `secrets.compare_digest` (constant-time). Missing or wrong credentials return **401**. An empty or unset `SECURE_API_KEY` causes a **loud startup failure** — the process will not serve.
 
 ```bash
 # 401 — no Authorization header
@@ -206,6 +230,15 @@ curl -sS -X POST http://127.0.0.1:8000/capture \
   -H "Authorization: Bearer $SECURE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"input":"Veranstaltung","source":"ios_voice"}'
+```
+
+### Words (review sync)
+
+Returns every `word_bank` row as a JSON array (id, target_word, grammar_details, definition, example_sentence, exported, timestamps, etc.). Used by `web/` Sync.
+
+```bash
+curl -sS http://127.0.0.1:8000/words \
+  -H "Authorization: Bearer $SECURE_API_KEY"
 ```
 
 ### Enrichment (hybrid)
@@ -272,6 +305,7 @@ curl -sS http://127.0.0.1:8000/health
 | `ingest_dictcc.py` | TSV → FTS5 CLI |
 | `enricher.py` | Hybrid FTS5 + LLM structured JSON |
 | `exporter.py` | genanki deck builder |
+| `web/` | Vite + React SM-2 review prototype |
 | `.env.example` | Config template (no secrets) |
 | `deploy/vocab-anki.service.example` | systemd unit for uvicorn |
 | `deploy/caddy.Caddyfile.example` | Optional Caddy example (production uses nginx + certbot) |
