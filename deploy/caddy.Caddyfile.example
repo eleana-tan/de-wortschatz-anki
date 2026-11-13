@@ -1,0 +1,16 @@
+# Caddy reverse proxy + automatic HTTPS for the Wortschatz API.
+# Install: put this site block in /etc/caddy/Caddyfile (or include it), then:
+#   sudo systemctl reload caddy
+#
+# Replace vocab.example.com with your DNS name pointing at the VPS.
+# App must listen on 127.0.0.1:8000 (see vocab-anki.service.example).
+
+vocab.example.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:8000
+
+	# Optional: basic rate limit / log hints — tune to taste
+	# log {
+	# 	output file /var/log/caddy/wortschatz.log
+	# }
+}

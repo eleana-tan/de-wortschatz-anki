@@ -1,0 +1,28 @@
+# systemd unit for the Wortschatz FastAPI app (uvicorn).
+# Install:
+#   sudo cp deploy/vocab-anki.service.example /etc/systemd/system/vocab-anki.service
+#   # edit User=, WorkingDirectory=, and paths below
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now vocab-anki
+#   sudo systemctl status vocab-anki
+
+[Unit]
+Description=German Wortschatz → Anki API (uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=wortschatz
+Group=wortschatz
+WorkingDirectory=/opt/wortschatz-anki
+EnvironmentFile=/opt/wortschatz-anki/.env
+ExecStart=/opt/wortschatz-anki/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+
+# Hardening (optional but recommended)
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
