@@ -70,25 +70,35 @@ uvicorn main:app --host 127.0.0.1 --port 8000
 
 ### Flashcard review UI (`web/`)
 
-Browser prototype: flip German → English cards, grade Again / Hard / Good / Easy, SM-2-like intervals in `localStorage`. Sync pulls `GET /words` from the pipeline API.
+Browser SPA: flip German → English cards, grade Again / Hard / Good / Easy, SM-2-like intervals in `localStorage`. Sync pulls `GET /words` from the pipeline API.
+
+**Local dev:**
 
 ```bash
 cd web
-npm install
+npm ci
 npm run dev
 # open the printed localhost URL (usually http://127.0.0.1:5173)
+```
+
+**Production build** (static files under `web/dist`, asset base `/` for site-root hosting):
+
+```bash
+cd web
+npm ci
+npm run build
 ```
 
 In **Settings**:
 
 | Field | Typical value |
 | --- | --- |
-| Base URL | `https://wortschatz.eleanatanrui.com` (or `http://127.0.0.1:8000` for a local API) |
+| Base URL | Leave blank when the SPA is served from `https://wortschatz.eleanatanrui.com` (same-origin). For local Vite → live API, use `https://wortschatz.eleanatanrui.com` (or `http://127.0.0.1:8000` for a local API). |
 | API key | same `SECURE_API_KEY` as the server `.env` |
 
-Then **Save** → **Sync**. Due cards appear on **Review**; when the queue is empty you see “Done for now.” Scheduling state never leaves the browser — only word content is fetched from the API. Do not commit API keys.
+Production builds default Base URL to **empty (same-origin)** so Sync works without typing a host. Settings stay editable. Then **Save** → **Sync**. Due cards appear on **Review**; when the queue is empty you see “Done for now.” Scheduling state never leaves the browser — only word content is fetched from the API. Do not commit API keys.
 
-CORS is enabled on the API so a local Vite origin can call the live host with Bearer auth.
+CORS (`allow_origins=*`) remains for local Vite → remote API; same-origin is preferred in production.
 
 ---
 
@@ -131,20 +141,50 @@ sudo systemctl enable --now vocab-anki
 sudo systemctl status vocab-anki
 ```
 
-### 3. nginx reverse proxy + HTTPS (certbot)
+### 3. nginx: SPA at `/` + API proxy + HTTPS (certbot)
 
-Production terminates TLS with **nginx + certbot** and proxies to `127.0.0.1:8000`. DNS for **`wortschatz.eleanatanrui.com`** should point at the VPS.
+Production terminates TLS with **nginx + certbot**. nginx serves the Vite build (`web/dist`) for `/` (SPA `try_files` fallback) and proxies API routes (`/health`, `/words`, `/capture`, `/export`, …) to uvicorn on `127.0.0.1:8000`.
+
+Example site config: [`deploy/nginx.wortschatz.conf.example`](deploy/nginx.wortschatz.conf.example).
+
+DNS for **`wortschatz.eleanatanrui.com`** should point at the VPS.
+
+#### Build + deploy the SPA (paths assume `~/vocab-anki`)
+
+Run on the VPS after merging this change (do **not** commit `web/dist` — build on the server):
 
 ```bash
-# after nginx site is configured for wortschatz.eleanatanrui.com → 127.0.0.1:8000
+cd ~/vocab-anki
+git pull origin main
+
+cd ~/vocab-anki/web
+npm ci
+npm run build
+# output: ~/vocab-anki/web/dist  (nginx root)
+
+# first-time nginx site (skip if already enabled; re-copy only when the example changes)
+sudo cp ~/vocab-anki/deploy/nginx.wortschatz.conf.example /etc/nginx/sites-available/wortschatz
+# ensure `root` points at ~/vocab-anki/web/dist (example uses /home/enamala/vocab-anki/web/dist)
+sudo ln -sf /etc/nginx/sites-available/wortschatz /etc/nginx/sites-enabled/wortschatz
 sudo nginx -t && sudo systemctl reload nginx
-# certbot (example): sudo certbot --nginx -d wortschatz.eleanatanrui.com
+
+# TLS once (if not already): sudo certbot --nginx -d wortschatz.eleanatanrui.com
+
 curl -sS https://wortschatz.eleanatanrui.com/health
+# open https://wortschatz.eleanatanrui.com/ in a browser → flashcard UI
 ```
 
-Keep `/capture` and `/export` behind HTTPS + Bearer — never publish them without auth.
+After later code updates, rebuild and reload:
 
-Optional alternate: [`deploy/caddy.Caddyfile.example`](deploy/caddy.Caddyfile.example) (not used in production).
+```bash
+cd ~/vocab-anki && git pull origin main
+cd ~/vocab-anki/web && npm ci && npm run build
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Keep `/capture`, `/words`, and `/export` behind HTTPS + Bearer — never publish them without auth.
+
+Optional alternate reverse proxy only: [`deploy/caddy.Caddyfile.example`](deploy/caddy.Caddyfile.example) (not used in production; no SPA static serving).
 
 ### 4. curl smoke tests
 
@@ -308,6 +348,7 @@ curl -sS http://127.0.0.1:8000/health
 | `web/` | Vite + React SM-2 review prototype |
 | `.env.example` | Config template (no secrets) |
 | `deploy/vocab-anki.service.example` | systemd unit for uvicorn |
+| `deploy/nginx.wortschatz.conf.example` | nginx: SPA `web/dist` + API proxy (production) |
 | `deploy/caddy.Caddyfile.example` | Optional Caddy example (production uses nginx + certbot) |
 
 ## License

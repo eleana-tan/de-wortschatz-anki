@@ -251,7 +251,7 @@ function SettingsPanel({
           type="url"
           value={baseUrl}
           onChange={(e) => setBaseUrl(e.target.value)}
-          placeholder="https://wortschatz.eleanatanrui.com"
+          placeholder="(same origin) or https://wortschatz.eleanatanrui.com"
           autoComplete="off"
         />
       </label>

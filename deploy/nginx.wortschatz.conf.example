@@ -1,0 +1,91 @@
+# nginx site for wortschatz.eleanatanrui.com
+# Serves the Vite SPA (web/dist) at / and proxies API routes to uvicorn.
+#
+# Install (example paths assume the repo lives at ~/vocab-anki):
+#   sudo cp deploy/nginx.wortschatz.conf.example /etc/nginx/sites-available/wortschatz
+#   # edit root= and any SSL paths; enable the site; then:
+#   sudo nginx -t && sudo systemctl reload nginx
+#   # TLS (once): sudo certbot --nginx -d wortschatz.eleanatanrui.com
+#
+# Build the SPA first:
+#   cd ~/vocab-anki/web && npm ci && npm run build
+
+upstream wortschatz_api {
+	server 127.0.0.1:8000;
+	keepalive 8;
+}
+
+server {
+	listen 80;
+	listen [::]:80;
+	server_name wortschatz.eleanatanrui.com;
+
+	# After certbot, this block is usually upgraded to listen 443 ssl and
+	# include the managed certificate directives. Keep the locations below.
+
+	# Absolute path to the Vite production build (adjust user/home as needed).
+	root /home/enamala/vocab-anki/web/dist;
+	index index.html;
+
+	# --- API (must win over the SPA fallback) ---
+	location = /health {
+		proxy_pass http://wortschatz_api;
+		proxy_http_version 1.1;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+	}
+
+	location = /words {
+		proxy_pass http://wortschatz_api;
+		proxy_http_version 1.1;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+	}
+
+	location = /capture {
+		proxy_pass http://wortschatz_api;
+		proxy_http_version 1.1;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+	}
+
+	location = /export {
+		proxy_pass http://wortschatz_api;
+		proxy_http_version 1.1;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		# .apkg downloads can be large; avoid buffering timeouts
+		proxy_buffering off;
+		proxy_read_timeout 120s;
+	}
+
+	# Optional FastAPI docs (comment out to hide in production)
+	location ~ ^/(docs|redoc|openapi\.json)$ {
+		proxy_pass http://wortschatz_api;
+		proxy_http_version 1.1;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+	}
+
+	# --- SPA (static assets + client-side routes) ---
+	location / {
+		try_files $uri $uri/ /index.html;
+	}
+
+	# Cache fingerprinted Vite assets aggressively
+	location /assets/ {
+		try_files $uri =404;
+		expires 7d;
+		add_header Cache-Control "public, immutable";
+	}
+}
