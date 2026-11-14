@@ -4,8 +4,11 @@ import { newCardDefaults } from './sm2'
 const SETTINGS_KEY = 'wortschatz.settings'
 const CARDS_KEY = 'wortschatz.cards'
 
+/** Production SPA is same-origin as the API (empty → fetch('/words')). Local Vite defaults to the live host. */
 const DEFAULT_SETTINGS: Settings = {
-  baseUrl: 'https://wortschatz.eleanatanrui.com',
+  baseUrl: import.meta.env.PROD
+    ? ''
+    : 'https://wortschatz.eleanatanrui.com',
   apiKey: '',
 }
 
@@ -14,8 +17,13 @@ export function loadSettings(): Settings {
     const raw = localStorage.getItem(SETTINGS_KEY)
     if (!raw) return { ...DEFAULT_SETTINGS }
     const parsed = JSON.parse(raw) as Partial<Settings>
+    // Preserve an explicitly saved empty string (same-origin); only fall back when missing.
+    const baseUrl =
+      typeof parsed.baseUrl === 'string'
+        ? parsed.baseUrl
+        : DEFAULT_SETTINGS.baseUrl
     return {
-      baseUrl: (parsed.baseUrl || DEFAULT_SETTINGS.baseUrl).replace(/\/$/, ''),
+      baseUrl: baseUrl.replace(/\/$/, ''),
       apiKey: parsed.apiKey ?? '',
     }
   } catch {
@@ -78,7 +86,8 @@ export function mergeWords(store: CardStore, words: ApiWord[], now = Date.now())
 
 export async function fetchWords(settings: Settings): Promise<ApiWord[]> {
   const base = settings.baseUrl.replace(/\/$/, '')
-  const res = await fetch(`${base}/words`, {
+  const url = base ? `${base}/words` : '/words'
+  const res = await fetch(url, {
     headers: {
       Authorization: `Bearer ${settings.apiKey}`,
       Accept: 'application/json',
