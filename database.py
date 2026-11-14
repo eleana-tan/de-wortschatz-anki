@@ -273,6 +273,19 @@ def fetch_unexported(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
+def list_word_bank(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """All word_bank rows for review sync (JSON-friendly plain dicts)."""
+    rows = conn.execute(
+        """
+        SELECT id, raw_input, source, target_word, grammar_details,
+               definition, example_sentence, exported, created_at, updated_at
+        FROM word_bank
+        ORDER BY id ASC
+        """
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def mark_exported(conn: sqlite3.Connection, ids: list[int]) -> int:
     if not ids:
         return 0

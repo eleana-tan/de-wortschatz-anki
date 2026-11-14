@@ -1,0 +1,38 @@
+:root {
+  --font-display: 'Cormorant Garamond', 'Palatino Linotype', Palatino, serif;
+  --font-ui: 'Outfit', 'Avenir Next', 'Segoe UI', sans-serif;
+  --ink: #d5ddd7;
+  --ink-bright: #f0f3ef;
+  --ink-muted: #8a978f;
+  --accent: #9bb89a;
+  color-scheme: dark;
+  font-family: var(--font-ui);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: #1a2420;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+button,
+input {
+  font: inherit;
+}
